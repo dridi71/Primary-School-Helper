@@ -1,5 +1,5 @@
 export interface Subject {
-  id: 'arabic' | 'math' | 'science' | 'history' | 'art';
+  id: 'arabic' | 'math' | 'science' | 'history' | 'art' | 'geography';
   name: string;
   icon: string;
   color: string;
