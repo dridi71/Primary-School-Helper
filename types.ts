@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface Subject {
-  id: 'arabic' | 'math' | 'science' | 'history' | 'art' | 'geography' | 'science_experiments' | 'health';
+  id: 'arabic' | 'math' | 'science' | 'history' | 'art' | 'geography' | 'music' | 'civics' | 'science_experiments' | 'health';
   name: string;
   icon: React.ReactNode;
   color: string;
