@@ -123,6 +123,6 @@ export const generateContent = async (subjectId: Subject['id'], type: ContentTyp
         
     } catch (error) {
         console.error("Error generating content from Gemini API:", error);
-        throw new Error("Failed to fetch content from AI service.");
+        throw error;
     }
 };

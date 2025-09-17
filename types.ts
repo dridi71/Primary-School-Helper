@@ -30,3 +30,11 @@ export interface GeneratedContent {
   text: string;
   imageUrl: string | null;
 }
+
+export type ProgressRecord = {
+  [subjectId in Subject['id']]?: {
+    [difficulty in Difficulty]?: {
+      [contentType in ContentType]?: boolean;
+    };
+  };
+};

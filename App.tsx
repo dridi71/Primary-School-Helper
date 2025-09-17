@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Subject, View, Difficulty, ContentType, GeneratedContent } from './types';
+import React, { useState, useEffect } from 'react';
+import { Subject, View, Difficulty, ContentType, GeneratedContent, ProgressRecord } from './types';
 import { SUBJECTS } from './constants';
 import { generateContent } from './services/geminiService';
+import { playSound } from './utils/audio';
 import SubjectCard from './components/SubjectCard';
 import ContentDisplay from './components/ContentDisplay';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -16,6 +17,8 @@ const difficultyLabels: { [key in Difficulty]: string } = {
   [Difficulty.Hard]: 'صعب 🦉',
 };
 
+const PROGRESS_KEY = 'primarySchoolProgress';
+
 const App: React.FC = () => {
   const [view, setView] = useState<View>(View.Subjects);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -24,38 +27,93 @@ const App: React.FC = () => {
   const [content, setContent] = useState<GeneratedContent | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressRecord>({});
+
+  useEffect(() => {
+    try {
+      const savedProgress = localStorage.getItem(PROGRESS_KEY);
+      if (savedProgress) {
+        setProgress(JSON.parse(savedProgress));
+      }
+    } catch (error) {
+      console.error("Failed to load progress from localStorage:", error);
+    }
+  }, []);
 
   const handleSubjectSelect = (subject: Subject) => {
+    playSound('select');
     setSelectedSubject(subject);
     setView(View.Difficulty);
   };
 
   const handleDifficultySelect = (difficulty: Difficulty) => {
+    playSound('select');
     setSelectedDifficulty(difficulty);
     setView(View.Options);
   };
-
-  const handleContentTypeSelect = async (contentType: ContentType) => {
-    setSelectedContentType(contentType);
-    setView(View.Content);
+  
+  const generateNewContent = async (contentType: ContentType) => {
+    if (!selectedSubject || !selectedDifficulty) return;
+    
     setIsLoading(true);
     setError(null);
     setContent(null);
 
-    if (selectedSubject && selectedDifficulty) {
+    try {
+      const generated = await generateContent(selectedSubject.id, contentType, selectedDifficulty);
+      setContent(generated);
+
+      // Update and save progress
+      const newProgress = {
+        ...progress,
+        [selectedSubject.id]: {
+          ...progress[selectedSubject.id],
+          [selectedDifficulty]: {
+            ...progress[selectedSubject.id]?.[selectedDifficulty],
+            [contentType]: true,
+          },
+        },
+      };
+      setProgress(newProgress);
       try {
-        const generated = await generateContent(selectedSubject.id, contentType, selectedDifficulty);
-        setContent(generated);
-      } catch (err) {
-        setError('حدث خطأ أثناء إعداد المحتوى. الرجاء المحاولة مرة أخرى.');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
+        localStorage.setItem(PROGRESS_KEY, JSON.stringify(newProgress));
+      } catch (error) {
+        console.error("Failed to save progress to localStorage:", error);
       }
+
+    } catch (err) {
+      let userFriendlyError = 'حدث خطأ غير متوقع أثناء إعداد المحتوى. الرجاء المحاولة مرة أخرى لاحقاً.';
+      if (err instanceof Error) {
+          if (err.message.includes("API_KEY may be missing")) {
+              userFriendlyError = 'خطأ في الإعداد: مفتاح الواجهة البرمجية (API Key) غير موجود. يرجى التأكد من إعداده بشكل صحيح.';
+          } else if (err.message.toLowerCase().includes('safety')) {
+              userFriendlyError = 'تم حظر الطلب لأسباب تتعلق بالسلامة. يرجى تجربة موضوع أو صياغة مختلفة.';
+          } else if (err.message.toLowerCase().includes('quota')) {
+              userFriendlyError = 'تم تجاوز حصة الاستخدام. يرجى المحاولة مرة أخرى في وقت لاحق.';
+          }
+          console.error("An error occurred during content generation:", err);
+      } else {
+          console.error("An unexpected error object was caught:", err);
+      }
+      setError(userFriendlyError);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleContentTypeSelect = (contentType: ContentType) => {
+    playSound('select');
+    setSelectedContentType(contentType);
+    setView(View.Content);
+    generateNewContent(contentType);
+  };
+  
+  const handleRetryExercise = () => {
+    generateNewContent(ContentType.Exercise);
+  }
+
   const handleBack = () => {
+    playSound('back');
     setError(null);
     if (view === View.Content) {
       setView(View.Subjects);
@@ -77,7 +135,12 @@ const App: React.FC = () => {
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-items-center">
             {SUBJECTS.map((subject) => (
-              <SubjectCard key={subject.id} subject={subject} onSelect={handleSubjectSelect} />
+              <SubjectCard 
+                key={subject.id} 
+                subject={subject} 
+                onSelect={handleSubjectSelect} 
+                isCompleted={!!progress[subject.id]}
+              />
             ))}
           </div>
         );
@@ -147,7 +210,7 @@ const App: React.FC = () => {
             </div>
             {isLoading && <LoadingSpinner />}
             {error && <div className="text-center text-red-500 bg-red-100 p-4 rounded-lg">{error}</div>}
-            {!isLoading && !error && content && <ContentDisplay content={content} subject={selectedSubject} contentType={selectedContentType} />}
+            {!isLoading && !error && content && <ContentDisplay content={content} subject={selectedSubject} contentType={selectedContentType} onRetry={handleRetryExercise} />}
           </div>
         );
       default:
@@ -163,7 +226,9 @@ const App: React.FC = () => {
         <p className="text-lg text-gray-500 mt-2">استكشف، تعلم، والعب في عالم المعرفة!</p>
       </header>
       <main className="w-full max-w-4xl flex justify-center flex-grow">
-        {renderContent()}
+        <div key={view} className="w-full animate-fade-in-up">
+          {renderContent()}
+        </div>
       </main>
       <footer className="w-full text-center py-4 mt-8 no-print">
         <p className="text-sm text-gray-500">

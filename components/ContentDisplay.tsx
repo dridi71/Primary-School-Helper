@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GeneratedContent, Subject, ContentType } from '../types';
+import { playSound } from '../utils/audio';
 import PrintIcon from './icons/PrintIcon';
 import SaveIcon from './icons/SaveIcon';
 import SpeakerOnIcon from './icons/SpeakerOnIcon';
@@ -14,22 +15,38 @@ interface ContentDisplayProps {
   content: GeneratedContent;
   subject: Subject | null;
   contentType: ContentType | null;
+  onRetry: () => void;
 }
 
-const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, contentType }) => {
+const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, contentType, onRetry }) => {
   const { text, imageUrl } = content;
   const [answers, setAnswers] = useState<Record<number, { selected: number; isCorrect: boolean }>>({});
+  const [totalQuestions, setTotalQuestions] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [quizCompleteSoundPlayed, setQuizCompleteSoundPlayed] = useState(false);
 
-  // Cleanup speech on component unmount
+  // Parse content to find total questions and reset state when new content arrives
   useEffect(() => {
+    if (contentType === ContentType.Exercise && text) {
+      const blocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
+      const questionCount = blocks.filter(block => block.match(/\*\*(.*?)\*\*/)).length;
+      setTotalQuestions(questionCount);
+    } else {
+      setTotalQuestions(0);
+    }
+    // Reset answers and sound state for new content
+    setAnswers({});
+    setQuizCompleteSoundPlayed(false);
+    
+    // Cleanup speech on component unmount or content change
     return () => {
       if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
       }
     };
-  }, []);
+  }, [text, contentType]);
+  
 
   const handleSave = () => {
     const element = document.getElementById('printable-content');
@@ -59,15 +76,12 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, conte
         utteranceRef.current.onend = null;
     }
     
-    // Remove markdown for a cleaner speech output
     const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1');
     const newUtterance = new SpeechSynthesisUtterance(cleanText);
-    newUtterance.lang = 'ar-SA'; // Set language to Arabic for correct pronunciation
+    newUtterance.lang = 'ar-SA';
     newUtterance.rate = 0.9;
     newUtterance.pitch = 1.1;
-    newUtterance.onend = () => {
-      setIsSpeaking(false);
-    };
+    newUtterance.onend = () => setIsSpeaking(false);
     newUtterance.onerror = (event) => {
         console.error('SpeechSynthesisUtterance.onerror', event);
         setIsSpeaking(false);
@@ -79,28 +93,47 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, conte
   };
 
   const handleOptionSelect = (questionIndex: number, optionIndex: number, isCorrect: boolean) => {
-    if (answers[questionIndex]) return; // Prevent changing answer
+    if (answers[questionIndex]) return;
+
+    // Play sound for correct or incorrect answer
+    playSound(isCorrect ? 'correct' : 'incorrect');
+
     setAnswers(prev => ({
       ...prev,
       [questionIndex]: { selected: optionIndex, isCorrect }
     }));
   };
 
+  const answeredQuestionsCount = Object.keys(answers).length;
+  const isQuizComplete = totalQuestions > 0 && answeredQuestionsCount === totalQuestions;
+  const score = Object.values(answers).filter(a => a.isCorrect).length;
+  
+  // Effect to play completion sound once
+  useEffect(() => {
+    if (isQuizComplete && !quizCompleteSoundPlayed) {
+      playSound('complete');
+      setQuizCompleteSoundPlayed(true);
+    }
+  }, [isQuizComplete, quizCompleteSoundPlayed]);
+
   const renderContentBlocks = (text: string) => {
     if (!text) return null;
     const blocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
+    let questionCounter = -1;
 
     return blocks.map((block, index) => {
       const lines = block.trim().split('\n');
       const questionRegex = /\*\*(.*?)\*\*/;
       const match = lines[0].match(questionRegex);
 
-      if (match) { // It's a question block
+      if (match && contentType === ContentType.Exercise) {
+        questionCounter++;
+        const currentQuestionIndex = questionCounter;
         const question = match[1];
         const rawOptions = lines.slice(1);
         const correctAnswerIndex = rawOptions.findIndex(opt => opt.includes('[correct]'));
         const options = rawOptions.map(opt => opt.replace('[correct]', '').replace(/^\s*-\s*/, '').trim());
-        const questionState = answers[index];
+        const questionState = answers[currentQuestionIndex];
 
         return (
           <div key={`quiz-${index}`} className="not-prose my-6 p-4 bg-teal-50 border-r-4 border-teal-500 rounded-lg shadow-sm">
@@ -131,7 +164,7 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, conte
                   <button
                     key={optIndex}
                     disabled={!!questionState}
-                    onClick={() => handleOptionSelect(index, optIndex, correctAnswerIndex === optIndex)}
+                    onClick={() => handleOptionSelect(currentQuestionIndex, optIndex, correctAnswerIndex === optIndex)}
                     className={buttonClass}
                   >
                     <span className="flex-grow">{option}</span>
@@ -143,14 +176,21 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, conte
           </div>
         );
       } else {
-        // It's a regular text block
         return (
           <div key={`text-${index}`} className="mb-4 whitespace-pre-wrap">
-            {block}
+            {block.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-teal-700">$1</strong>')}
           </div>
         );
       }
     });
+  };
+  
+  const renderFormattedText = (text: string) => {
+      if (!text) return null;
+       const blocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
+       return blocks.map((block, index) => (
+           <p key={index} className="mb-4" dangerouslySetInnerHTML={{ __html: block.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-teal-700">$1</strong>') }} />
+       ));
   };
 
   return (
@@ -194,9 +234,24 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, conte
           </div>
         )}
         <div className="prose prose-lg max-w-none text-right leading-loose">
-          {renderContentBlocks(text)}
+          {contentType === ContentType.Exercise ? renderContentBlocks(text) : renderFormattedText(text)}
         </div>
       </div>
+
+      {isQuizComplete && (
+        <div className="no-print mt-8 p-6 bg-yellow-100 border-t-4 border-yellow-400 rounded-lg text-center shadow-lg animate-fade-in-up">
+          <h3 className="text-2xl font-bold text-yellow-800">أحسنت! لقد أكملت التمرين.</h3>
+          <p className="text-xl text-yellow-700 mt-2">
+            نتيجتك هي: <span className="font-extrabold text-2xl">{score}</span> من <span className="font-extrabold text-2xl">{totalQuestions}</span>
+          </p>
+          <button
+            onClick={onRetry}
+            className="mt-6 px-8 py-3 bg-teal-500 text-white font-bold rounded-lg hover:bg-teal-600 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+          >
+            جرب تمرينا جديدا
+          </button>
+        </div>
+      )}
     </div>
   );
 };
