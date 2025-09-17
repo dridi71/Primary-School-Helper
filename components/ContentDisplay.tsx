@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
-import { GeneratedContent, Subject } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { GeneratedContent, Subject, ContentType } from '../types';
 import PrintIcon from './icons/PrintIcon';
 import SaveIcon from './icons/SaveIcon';
+import SpeakerOnIcon from './icons/SpeakerOnIcon';
+import SpeakerOffIcon from './icons/SpeakerOffIcon';
+import CheckCircleIcon from './icons/CheckCircleIcon';
+import XCircleIcon from './icons/XCircleIcon';
 
 // Declare html2pdf to use it from the global scope (CDN script)
 declare const html2pdf: any;
@@ -9,11 +13,23 @@ declare const html2pdf: any;
 interface ContentDisplayProps {
   content: GeneratedContent;
   subject: Subject | null;
+  contentType: ContentType | null;
 }
 
-const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => {
+const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject, contentType }) => {
   const { text, imageUrl } = content;
   const [answers, setAnswers] = useState<Record<number, { selected: number; isCorrect: boolean }>>({});
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Cleanup speech on component unmount
+  useEffect(() => {
+    return () => {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const handleSave = () => {
     const element = document.getElementById('printable-content');
@@ -30,6 +46,36 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => 
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
     html2pdf().from(element).set(opt).save();
+  };
+  
+  const handleToggleSpeech = () => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    if (utteranceRef.current) {
+        utteranceRef.current.onend = null;
+    }
+    
+    // Remove markdown for a cleaner speech output
+    const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1');
+    const newUtterance = new SpeechSynthesisUtterance(cleanText);
+    newUtterance.lang = 'ar-SA'; // Set language to Arabic for correct pronunciation
+    newUtterance.rate = 0.9;
+    newUtterance.pitch = 1.1;
+    newUtterance.onend = () => {
+      setIsSpeaking(false);
+    };
+    newUtterance.onerror = (event) => {
+        console.error('SpeechSynthesisUtterance.onerror', event);
+        setIsSpeaking(false);
+    }
+    
+    utteranceRef.current = newUtterance;
+    window.speechSynthesis.speak(newUtterance);
+    setIsSpeaking(true);
   };
 
   const handleOptionSelect = (questionIndex: number, optionIndex: number, isCorrect: boolean) => {
@@ -61,16 +107,19 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => 
             <p className="font-bold text-lg text-teal-800 mb-4">{question}</p>
             <div className="flex flex-col gap-3">
               {options.map((option, optIndex) => {
-                let buttonClass = "w-full text-right p-3 bg-white rounded-lg border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200 text-base font-semibold text-gray-700";
+                let buttonClass = "w-full text-right p-3 bg-white rounded-lg border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200 text-base font-semibold text-gray-700 flex items-center justify-between";
+                let feedbackIcon = null;
 
                 if (questionState) {
                   const isSelected = questionState.selected === optIndex;
-                  const isCorrect = correctAnswerIndex === optIndex;
+                  const isCorrectOption = correctAnswerIndex === optIndex;
 
-                  if (isCorrect) {
+                  if (isCorrectOption) {
                      buttonClass += ' bg-green-100 border-green-400 text-green-800';
-                  } else if (isSelected && !isCorrect) {
+                     feedbackIcon = <CheckCircleIcon className="w-6 h-6 text-green-600" />;
+                  } else if (isSelected && !isCorrectOption) {
                      buttonClass += ' bg-red-100 border-red-400 text-red-800';
+                     feedbackIcon = <XCircleIcon className="w-6 h-6 text-red-600" />;
                   } else {
                      buttonClass += ' opacity-70 cursor-not-allowed';
                   }
@@ -85,7 +134,8 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => 
                     onClick={() => handleOptionSelect(index, optIndex, correctAnswerIndex === optIndex)}
                     className={buttonClass}
                   >
-                    {option}
+                    <span className="flex-grow">{option}</span>
+                    {feedbackIcon}
                   </button>
                 );
               })}
@@ -106,6 +156,16 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => 
   return (
     <div>
        <div className="no-print flex items-center gap-4 mb-4">
+        {contentType === ContentType.Lesson && (
+          <button
+            onClick={handleToggleSpeech}
+            aria-label={isSpeaking ? "إيقاف السرد" : "تشغيل السرد الصوتي"}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+          >
+            {isSpeaking ? <SpeakerOffIcon className="w-5 h-5" /> : <SpeakerOnIcon className="w-5 h-5" />}
+            <span>{isSpeaking ? "إيقاف" : "استمع"}</span>
+          </button>
+        )}
         <button
           onClick={() => window.print()}
           aria-label="طباعة المحتوى"

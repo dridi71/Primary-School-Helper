@@ -15,7 +15,10 @@ const SubjectCard: React.FC<SubjectCardProps> = ({ subject, onSelect }) => {
       onClick={() => onSelect(subject)}
       style={{ borderBottom: `8px solid ${subject.color}` }}
     >
-      <div className={`mb-4 ${isEmoji ? 'text-6xl' : ''}`} style={{ color: subject.color }}>
+      <div
+        className={`mb-4 flex items-center justify-center w-16 h-16 ${isEmoji ? 'text-6xl' : ''}`}
+        style={{ color: subject.color }}
+      >
         {subject.icon}
       </div>
       <h3 className="text-2xl font-bold mb-2" style={{ color: subject.color }}>

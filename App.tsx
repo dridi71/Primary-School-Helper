@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>(View.Subjects);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
+  const [selectedContentType, setSelectedContentType] = useState<ContentType | null>(null);
   const [content, setContent] = useState<GeneratedContent | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ const App: React.FC = () => {
   };
 
   const handleContentTypeSelect = async (contentType: ContentType) => {
+    setSelectedContentType(contentType);
     setView(View.Content);
     setIsLoading(true);
     setError(null);
@@ -58,6 +60,7 @@ const App: React.FC = () => {
       setView(View.Subjects);
       setSelectedSubject(null);
       setSelectedDifficulty(null);
+      setSelectedContentType(null);
       setContent(null);
     } else if (view === View.Options) {
       setView(View.Difficulty);
@@ -143,7 +146,7 @@ const App: React.FC = () => {
             </div>
             {isLoading && <LoadingSpinner />}
             {error && <div className="text-center text-red-500 bg-red-100 p-4 rounded-lg">{error}</div>}
-            {!isLoading && !error && content && <ContentDisplay content={content} subject={selectedSubject} />}
+            {!isLoading && !error && content && <ContentDisplay content={content} subject={selectedSubject} contentType={selectedContentType} />}
           </div>
         );
       default:
