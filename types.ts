@@ -1,7 +1,9 @@
+import React from 'react';
+
 export interface Subject {
   id: 'arabic' | 'math' | 'science' | 'history' | 'art' | 'geography';
   name: string;
-  icon: string;
+  icon: React.ReactNode;
   color: string;
   description: string;
 }

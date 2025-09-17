@@ -1,5 +1,8 @@
-
+import React from 'react';
 import { Subject } from './types';
+import ArtIcon from './components/icons/ArtIcon';
+import HistoryIcon from './components/icons/HistoryIcon';
+import GeographyIcon from './components/icons/GeographyIcon';
 
 export const SUBJECTS: Subject[] = [
   {
@@ -26,21 +29,24 @@ export const SUBJECTS: Subject[] = [
   {
     id: 'history',
     name: 'التاريخ',
-    icon: '📜',
+    // FIX: Replaced JSX with React.createElement to support .ts files that are not configured to parse JSX.
+    icon: React.createElement(HistoryIcon, { className: "w-16 h-16" }),
     color: '#f59e0b',
     description: 'نسافر عبر الزمن لنتعرف على قصص الأبطال والأحداث المهمة.',
   },
   {
     id: 'art',
     name: 'التربية الفنية',
-    icon: '🎨',
+    // FIX: Replaced JSX with React.createElement to support .ts files that are not configured to parse JSX.
+    icon: React.createElement(ArtIcon, { className: "w-16 h-16" }),
     color: '#8b5cf6',
     description: 'نطلق العنان لإبداعنا بالرسم، التلوين، وتشكيل الأعمال الفنية.',
   },
   {
     id: 'geography',
     name: 'الجغرافيا',
-    icon: '🌍',
+    // FIX: Replaced JSX with React.createElement to support .ts files that are not configured to parse JSX.
+    icon: React.createElement(GeographyIcon, { className: "w-16 h-16" }),
     color: '#f97316',
     description: 'نكتشف قارات العالم، بلدانها، وجبالها وأنهارها في رحلة حول الكوكب.',
   },

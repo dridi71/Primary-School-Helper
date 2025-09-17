@@ -157,9 +157,14 @@ const App: React.FC = () => {
         <h1 className="text-4xl sm:text-5xl font-bold text-teal-600">مغامراتي التعليمية</h1>
         <p className="text-lg text-gray-500 mt-2">استكشف، تعلم، والعب في عالم المعرفة!</p>
       </header>
-      <main className="w-full max-w-4xl flex justify-center">
+      <main className="w-full max-w-4xl flex justify-center flex-grow">
         {renderContent()}
       </main>
+      <footer className="w-full text-center py-4 mt-8 no-print">
+        <p className="text-sm text-gray-500">
+          Création de Mohamed Dridi © 2024. Conçu avec ❤️ pour l'éducation.
+        </p>
+      </footer>
     </div>
   );
 };

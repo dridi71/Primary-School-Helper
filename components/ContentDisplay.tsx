@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GeneratedContent, Subject } from '../types';
 import PrintIcon from './icons/PrintIcon';
 import SaveIcon from './icons/SaveIcon';
@@ -13,6 +13,7 @@ interface ContentDisplayProps {
 
 const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => {
   const { text, imageUrl } = content;
+  const [answers, setAnswers] = useState<Record<number, { selected: number; isCorrect: boolean }>>({});
 
   const handleSave = () => {
     const element = document.getElementById('printable-content');
@@ -31,43 +32,68 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, subject }) => 
     html2pdf().from(element).set(opt).save();
   };
 
+  const handleOptionSelect = (questionIndex: number, optionIndex: number, isCorrect: boolean) => {
+    if (answers[questionIndex]) return; // Prevent changing answer
+    setAnswers(prev => ({
+      ...prev,
+      [questionIndex]: { selected: optionIndex, isCorrect }
+    }));
+  };
 
   const renderContentBlocks = (text: string) => {
     if (!text) return null;
-
-    // Split content into blocks based on one or more empty lines
     const blocks = text.split(/\n\s*\n/).filter(block => block.trim() !== '');
 
     return blocks.map((block, index) => {
       const lines = block.trim().split('\n');
-      const questionRegex = /\*\*(.*?)\*\*/; // Matches text between **...**
-      const optionRegex = /^\s*-\s*\((.+?)\)/; // Matches lines like "- (أ)"
+      const questionRegex = /\*\*(.*?)\*\*/;
+      const match = lines[0].match(questionRegex);
 
-      const firstLineIsQuestion = questionRegex.test(lines[0]);
-      const hasOptions = lines.slice(1).some(line => optionRegex.test(line));
-
-      // Check if the block is a quiz/question block
-      if (firstLineIsQuestion && hasOptions) {
-        const question = lines[0];
-        const options = lines.slice(1);
+      if (match) { // It's a question block
+        const question = match[1];
+        const rawOptions = lines.slice(1);
+        const correctAnswerIndex = rawOptions.findIndex(opt => opt.includes('[correct]'));
+        const options = rawOptions.map(opt => opt.replace('[correct]', '').replace(/^\s*-\s*/, '').trim());
+        const questionState = answers[index];
 
         return (
           <div key={`quiz-${index}`} className="not-prose my-6 p-4 bg-teal-50 border-r-4 border-teal-500 rounded-lg shadow-sm">
             <p className="font-bold text-lg text-teal-800 mb-4">{question}</p>
             <div className="flex flex-col gap-3">
-              {options.map((option, optIndex) => (
-                <button
-                  key={optIndex}
-                  className="w-full text-right p-3 bg-white rounded-lg border-2 border-gray-200 hover:bg-teal-100 hover:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200 text-base font-semibold text-gray-700"
-                >
-                  {option.replace(/^\s*-\s*/, '').trim()}
-                </button>
-              ))}
+              {options.map((option, optIndex) => {
+                let buttonClass = "w-full text-right p-3 bg-white rounded-lg border-2 border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all duration-200 text-base font-semibold text-gray-700";
+
+                if (questionState) {
+                  const isSelected = questionState.selected === optIndex;
+                  const isCorrect = correctAnswerIndex === optIndex;
+
+                  if (isCorrect) {
+                     buttonClass += ' bg-green-100 border-green-400 text-green-800';
+                  } else if (isSelected && !isCorrect) {
+                     buttonClass += ' bg-red-100 border-red-400 text-red-800';
+                  } else {
+                     buttonClass += ' opacity-70 cursor-not-allowed';
+                  }
+                } else {
+                   buttonClass += ' hover:bg-teal-100 hover:border-teal-400 cursor-pointer';
+                }
+
+                return (
+                  <button
+                    key={optIndex}
+                    disabled={!!questionState}
+                    onClick={() => handleOptionSelect(index, optIndex, correctAnswerIndex === optIndex)}
+                    className={buttonClass}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
             </div>
           </div>
         );
       } else {
-        // It's a regular text block, render with paragraphs
+        // It's a regular text block
         return (
           <div key={`text-${index}`} className="mb-4 whitespace-pre-wrap">
             {block}
