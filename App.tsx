@@ -8,6 +8,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import BackArrowIcon from './components/icons/BackArrowIcon';
 import BookIcon from './components/icons/BookIcon';
 import PencilIcon from './components/icons/PencilIcon';
+import LogoIcon from './components/icons/LogoIcon';
 
 const difficultyLabels: { [key in Difficulty]: string } = {
   [Difficulty.Easy]: 'سهل 🐣',
@@ -157,6 +158,7 @@ const App: React.FC = () => {
   return (
     <div dir="rtl" className="bg-gray-50 min-h-screen font-sans text-gray-800 p-4 sm:p-8 flex flex-col items-center">
       <header className="w-full max-w-4xl mb-8 text-center no-print">
+        <LogoIcon className="w-24 h-24 mx-auto text-teal-500 mb-2" />
         <h1 className="text-4xl sm:text-5xl font-bold text-teal-600">مغامراتي التعليمية</h1>
         <p className="text-lg text-gray-500 mt-2">استكشف، تعلم، والعب في عالم المعرفة!</p>
       </header>
