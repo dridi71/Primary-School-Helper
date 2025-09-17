@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Subject, View, Difficulty, ContentType } from './types';
+import { Subject, View, Difficulty, ContentType, GeneratedContent } from './types';
 import { SUBJECTS } from './constants';
 import { generateContent } from './services/geminiService';
 import SubjectCard from './components/SubjectCard';
@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>(View.Subjects);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
-  const [content, setContent] = useState<string>('');
+  const [content, setContent] = useState<GeneratedContent | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +37,7 @@ const App: React.FC = () => {
     setView(View.Content);
     setIsLoading(true);
     setError(null);
-    setContent('');
+    setContent(null);
 
     if (selectedSubject && selectedDifficulty) {
       try {
@@ -58,7 +58,7 @@ const App: React.FC = () => {
       setView(View.Subjects);
       setSelectedSubject(null);
       setSelectedDifficulty(null);
-      setContent('');
+      setContent(null);
     } else if (view === View.Options) {
       setView(View.Difficulty);
     } else if (view === View.Difficulty) {
@@ -135,7 +135,7 @@ const App: React.FC = () => {
       case View.Content:
         return (
           <div className="w-full">
-            <div className="mb-6">
+            <div className="mb-6 no-print">
               <button onClick={handleBack} className="flex items-center gap-2 text-gray-600 hover:text-teal-600 font-semibold transition-colors">
                 <BackArrowIcon className="w-5 h-5" />
                 <span>ابدأ من جديد</span>
@@ -143,7 +143,7 @@ const App: React.FC = () => {
             </div>
             {isLoading && <LoadingSpinner />}
             {error && <div className="text-center text-red-500 bg-red-100 p-4 rounded-lg">{error}</div>}
-            {!isLoading && !error && content && <ContentDisplay content={content} />}
+            {!isLoading && !error && content && <ContentDisplay content={content} subject={selectedSubject} />}
           </div>
         );
       default:
@@ -153,7 +153,7 @@ const App: React.FC = () => {
 
   return (
     <div dir="rtl" className="bg-gray-50 min-h-screen font-sans text-gray-800 p-4 sm:p-8 flex flex-col items-center">
-      <header className="w-full max-w-4xl mb-8 text-center">
+      <header className="w-full max-w-4xl mb-8 text-center no-print">
         <h1 className="text-4xl sm:text-5xl font-bold text-teal-600">مغامراتي التعليمية</h1>
         <p className="text-lg text-gray-500 mt-2">استكشف، تعلم، والعب في عالم المعرفة!</p>
       </header>

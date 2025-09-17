@@ -1,5 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { ContentType, Difficulty, Subject } from '../types';
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { ContentType, Difficulty, Subject, GeneratedContent } from '../types';
 
 // FIX: Refactored API key handling to align with guidelines.
 // The API key MUST be obtained exclusively from `process.env.API_KEY`.
@@ -40,7 +40,7 @@ const difficultyInstructions = {
     [Difficulty.Hard]: "صمم محتوى متقدمًا به تحدي واضح ومناسب للطلاب المتميزين."
 };
 
-export const generateContent = async (subjectId: Subject['id'], type: ContentType, difficulty: Difficulty): Promise<string> => {
+export const generateContent = async (subjectId: Subject['id'], type: ContentType, difficulty: Difficulty): Promise<GeneratedContent> => {
     const basePrompt = prompts[subjectId][type];
     if (!basePrompt) {
         throw new Error("Invalid subject or content type");
@@ -50,7 +50,8 @@ export const generateContent = async (subjectId: Subject['id'], type: ContentTyp
     const finalPrompt = `${basePrompt}\n\nتوجيه إضافي بخصوص مستوى الصعوبة: ${difficultyInstruction}`;
 
     try {
-        const response = await ai.models.generateContent({
+        // 1. Generate lesson/exercise text
+        const textResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: finalPrompt,
             config: {
@@ -58,7 +59,44 @@ export const generateContent = async (subjectId: Subject['id'], type: ContentTyp
             }
         });
         
-        return response.text;
+        const generatedText = textResponse.text;
+        let imageUrl: string | null = null;
+
+        // 2. If it's a lesson, generate an image
+        if (type === ContentType.Lesson && generatedText) {
+            try {
+                // 2a. Generate a simple English prompt for the image model
+                const imagePromptGeneratorResponse: GenerateContentResponse = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: `Based on the following lesson for a 7-year-old, create a simple, single-sentence image prompt for an AI image generator. The prompt should describe a colorful, cute, and child-friendly cartoon-style illustration that captures the essence of the lesson. The prompt must be in English. Lesson: "${generatedText}"`,
+                });
+                const imagePrompt = imagePromptGeneratorResponse.text;
+
+                if (imagePrompt) {
+                     // 2b. Generate the image
+                    const imageResponse = await ai.models.generateImages({
+                        model: 'imagen-4.0-generate-001',
+                        prompt: imagePrompt,
+                        config: {
+                          numberOfImages: 1,
+                          outputMimeType: 'image/png',
+                          aspectRatio: '16:9',
+                        },
+                    });
+                    
+                    if (imageResponse.generatedImages && imageResponse.generatedImages.length > 0) {
+                        const base64ImageBytes: string = imageResponse.generatedImages[0].image.imageBytes;
+                        imageUrl = `data:image/png;base64,${base64ImageBytes}`;
+                    }
+                }
+            } catch (imageError) {
+                console.error("Error generating image:", imageError);
+                // Non-critical error, proceed without an image
+            }
+        }
+
+        return { text: generatedText, imageUrl };
+        
     } catch (error) {
         console.error("Error generating content from Gemini API:", error);
         throw new Error("Failed to fetch content from AI service.");

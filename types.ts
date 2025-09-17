@@ -23,3 +23,8 @@ export enum View {
     Options = 'options',
     Content = 'content',
 }
+
+export interface GeneratedContent {
+  text: string;
+  imageUrl: string | null;
+}
